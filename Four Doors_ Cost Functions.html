@@ -1,0 +1,1652 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Four Doors: Cost Functions</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@600;700;900&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&family=Fira+Code:wght@500;700&family=MedievalSharp&display=swap" rel="stylesheet">
+<style>
+:root {
+  --wall: #0c1c14;
+  --wall-glow: #163628;
+  --ink: #eaf6ea;
+  --ink-dim: #9cc2a7;
+  --card: #142a1f;
+  --card-border: #28543d;
+  --card-glow: rgba(40, 84, 61, 0.45);
+  --gold: #f3c759;
+  --gold-glow: rgba(243, 199, 89, 0.4);
+  --parchment: #fdf6e2;
+  --parchment-ink: #262117;
+  --tree: #06120b;
+  --sky: #f7e096;
+  --c1: #e04f44;
+  --c2: #d89619;
+  --c3: #2fb36d;
+  --c4: #38bdf8;
+  --font-serif: "Cinzel", Georgia, serif;
+  --font-game: "MedievalSharp", cursive, serif;
+  --font-sans: "Atkinson Hyperlegible", system-ui, sans-serif;
+  --font-mono: "Fira Code", monospace;
+}
+
+:root[data-theme="light"] {
+  --wall: #dff0d8;
+  --wall-glow: #ebf8e6;
+  --ink: #14281e;
+  --ink-dim: #3a5c48;
+  --card: #eff8eb;
+  --card-border: #a4caa0;
+  --card-glow: rgba(164, 202, 160, 0.4);
+  --gold: #b3820a;
+  --gold-glow: rgba(179, 130, 10, 0.3);
+  --parchment: #fffdf5;
+  --parchment-ink: #1f1b13;
+  --tree: #739d6b;
+  --sky: #fce38a;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  margin: 0;
+  background-color: var(--wall);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 18px;
+  line-height: 1.6;
+  min-height: 100vh;
+  overflow-x: hidden;
+  position: relative;
+  transition: background-color 0.4s ease, color 0.4s ease;
+  user-select: none;
+}
+
+/* Background Parallax Canvas & Forest Layers */
+#canvas-container {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+canvas { display: block; }
+
+.forest-silhouette {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 220px;
+  pointer-events: none;
+  z-index: 0;
+  background-repeat: repeat-x;
+  background-position: bottom center;
+}
+.forest-back {
+  opacity: 0.35;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='220' viewBox='0 0 200 220'%3E%3Cpath fill='%23050c08' d='M50 40 L75 100 L60 100 L85 150 L68 150 L95 220 L5 220 L30 150 L15 150 L40 100 L25 100 Z M150 20 L180 85 L165 85 L195 140 L178 140 L210 220 L90 220 L120 140 L105 140 L135 85 L120 85 Z'/%3E%3C/svg%3E");
+  background-size: 200px 220px;
+  transform: translateY(20px);
+}
+.forest-front {
+  opacity: 0.7;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='180' viewBox='0 0 140 180'%3E%3Cpath fill='%23020704' d='M35 15 L55 65 L42 65 L62 115 L48 115 L70 180 L0 180 L22 115 L8 115 L28 65 L15 65 Z M105 45 L125 90 L115 90 L132 135 L120 135 L140 180 L70 180 L90 135 L78 135 L98 90 L88 90 Z'/%3E%3C/svg%3E");
+  background-size: 140px 180px;
+}
+
+.celestial {
+  position: fixed;
+  top: 30px;
+  right: 6vw;
+  width: 70px;
+  height: 70px;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+  box-shadow: 0 0 60px 20px rgba(247, 224, 150, 0.35);
+  background: radial-gradient(circle at 35% 35%, #fffef0, var(--sky));
+  animation: celestial-glow 6s infinite alternate ease-in-out;
+}
+@keyframes celestial-glow {
+  0% { transform: scale(1); filter: drop-shadow(0 0 15px rgba(247,224,150,0.5)); }
+  100% { transform: scale(1.08); filter: drop-shadow(0 0 35px rgba(247,224,150,0.8)); }
+}
+
+/* Game HUD */
+.game-hud {
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  background: rgba(12, 28, 20, 0.82);
+  border-bottom: 2px solid var(--card-border);
+  padding: 10px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 15px;
+  box-shadow: 0 4px 25px rgba(0,0,0,0.35);
+}
+:root[data-theme="light"] .game-hud {
+  background: rgba(223, 240, 216, 0.88);
+}
+
+.hud-title-zone {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.hud-emblem {
+  width: 38px;
+  height: 38px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #1d4d33, #0a1f14);
+  border: 1.5px solid var(--gold);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  box-shadow: 0 0 12px var(--gold-glow);
+}
+.hud-title {
+  font-family: var(--font-game);
+  font-size: 1.25rem;
+  letter-spacing: 0.5px;
+  color: var(--gold);
+  line-height: 1.1;
+  text-shadow: 0 2px 4px rgba(0,0,0,0.6);
+}
+.hud-subtitle {
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  font-family: var(--font-sans);
+}
+
+.hud-quest-stats {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.quest-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--card-border);
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+.rune-gem {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  display: inline-block;
+  opacity: 0.25;
+  transition: all 0.3s;
+  border: 1.5px solid rgba(255,255,255,0.4);
+}
+.rune-gem.active {
+  opacity: 1;
+  box-shadow: 0 0 10px currentColor;
+  transform: scale(1.15);
+}
+
+.hud-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.hud-btn {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--card-border);
+  color: var(--ink);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+  font-family: var(--font-sans);
+  font-weight: 700;
+}
+.hud-btn:hover {
+  background: var(--card-border);
+  color: #fff;
+  border-color: var(--gold);
+}
+
+/* Main Content Wrapper */
+main {
+  position: relative;
+  z-index: 10;
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 36px 20px 140px;
+  min-height: calc(100vh - 70px);
+}
+
+/* Headings & Text */
+h1, h2, h3 {
+  font-family: var(--font-serif);
+  line-height: 1.2;
+  margin-bottom: 0.6em;
+  font-weight: 700;
+}
+h1 {
+  font-size: clamp(2rem, 5.5vw, 3.2rem);
+  color: var(--gold);
+  text-shadow: 0 2px 10px rgba(0,0,0,0.4);
+}
+h2 {
+  font-size: clamp(1.6rem, 4vw, 2.4rem);
+  color: var(--ink);
+}
+p {
+  max-width: 68ch;
+  margin-bottom: 1.1em;
+  color: var(--ink);
+}
+
+/* Buttons */
+.rpg-btn {
+  background: linear-gradient(180deg, #376346 0%, #1c3b28 100%);
+  color: #fbfbee;
+  border: 2px solid var(--gold);
+  border-radius: 8px;
+  padding: 12px 28px;
+  font-family: var(--font-game);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  text-shadow: 0 1px 3px rgba(0,0,0,0.7);
+}
+.rpg-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 7px 22px rgba(243, 199, 89, 0.4), inset 0 1px 0 rgba(255,255,255,0.4);
+  background: linear-gradient(180deg, #447b57 0%, #224732 100%);
+  border-color: #ffe699;
+}
+.rpg-btn:active:not(:disabled) { transform: translateY(1px); }
+.rpg-btn:disabled { opacity: 0.45; cursor: not-allowed; border-color: var(--card-border); }
+
+.rpg-btn-secondary {
+  background: rgba(255,255,255,0.06);
+  border: 1.5px solid var(--card-border);
+  color: var(--ink);
+}
+.rpg-btn-secondary:hover {
+  background: var(--card-border);
+  border-color: var(--gold);
+}
+
+.link-btn {
+  background: none;
+  border: none;
+  color: var(--gold);
+  font-size: 1rem;
+  font-weight: 700;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 0;
+  transition: all 0.2s;
+  font-family: var(--font-game);
+  letter-spacing: 0.5px;
+}
+.link-btn:hover {
+  color: #fff;
+  transform: translateX(-3px);
+}
+
+/* Intro View */
+.intro-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 65vh;
+  text-align: center;
+  animation: fadeIn 0.8s ease-out;
+}
+.intro-parchment {
+  background: radial-gradient(circle at 50% 0%, rgba(42, 85, 60, 0.35), rgba(15, 33, 23, 0.95));
+  border: 2px solid var(--gold);
+  border-radius: 16px;
+  padding: 48px 36px;
+  max-width: 680px;
+  box-shadow: 0 15px 40px rgba(0,0,0,0.6), 0 0 30px var(--gold-glow);
+  position: relative;
+  overflow: hidden;
+}
+:root[data-theme="light"] .intro-parchment {
+  background: radial-gradient(circle at 50% 0%, #f7fdf4, #e5f4dc);
+  border-color: #8dae86;
+  box-shadow: 0 12px 30px rgba(0,0,0,0.1);
+}
+.intro-parchment::before {
+  content: "✦ ✦ ✦";
+  display: block;
+  font-size: 1.2rem;
+  color: var(--gold);
+  margin-bottom: 12px;
+  letter-spacing: 6px;
+}
+.intro-lead {
+  font-size: 1.2rem;
+  line-height: 1.7;
+  color: var(--ink);
+  margin: 16px 0;
+}
+
+/* Hall of Four Doors */
+.hall-container {
+  animation: fadeIn 0.6s ease-out;
+}
+.hall-header {
+  text-align: center;
+  margin-bottom: 36px;
+}
+.hall-progress-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0,0,0,0.3);
+  border: 1px solid var(--card-border);
+  padding: 6px 18px;
+  border-radius: 30px;
+  font-size: 0.95rem;
+  color: var(--gold);
+  margin-top: 10px;
+  font-weight: 700;
+}
+
+.hall-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 26px;
+  margin: 32px 0 44px;
+  perspective: 1000px;
+}
+
+/* 3D Game Fantasy Door */
+.game-door {
+  position: relative;
+  height: 330px;
+  background: #080f0c;
+  border-radius: 90px 90px 10px 10px;
+  border: 3px solid #1a3928;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+  box-shadow: 0 12px 28px rgba(0,0,0,0.5), inset 0 0 20px rgba(0,0,0,0.8);
+  transition: transform 0.3s cubic-bezier(0.2,0.8,0.2,1), border-color 0.3s, box-shadow 0.3s;
+}
+.game-door:hover {
+  transform: translateY(-8px) scale(1.02);
+  border-color: var(--accent-door);
+  box-shadow: 0 20px 40px rgba(0,0,0,0.6), 0 0 25px var(--accent-glow);
+}
+
+.door-frame-arch {
+  position: absolute;
+  top: 6px;
+  left: 6px;
+  right: 6px;
+  bottom: 6px;
+  border-radius: 84px 84px 6px 6px;
+  border: 2px dashed rgba(255,255,255,0.15);
+  pointer-events: none;
+}
+
+.door-leaf {
+  position: absolute;
+  inset: 0;
+  border-radius: 88px 88px 8px 8px;
+  transform-origin: left center;
+  transition: transform 0.8s cubic-bezier(0.25, 1, 0.3, 1), filter 0.5s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  padding: 30px 16px 24px;
+  color: #fff;
+  text-align: center;
+  overflow: hidden;
+  background: var(--door-bg);
+  box-shadow: inset 0 0 35px rgba(0,0,0,0.4);
+}
+.door-leaf::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(255,255,255,0.2) 0%, rgba(0,0,0,0.4) 100%),
+              repeating-linear-gradient(90deg, transparent, transparent 38px, rgba(0,0,0,0.2) 40px);
+  pointer-events: none;
+}
+.game-door:hover .door-leaf { transform: rotateY(-18deg); }
+.game-door.open .door-leaf {
+  transform: rotateY(-112deg);
+  filter: brightness(1.2);
+}
+
+.door-rune-symbol {
+  width: 58px;
+  height: 58px;
+  border-radius: 50%;
+  background: rgba(0,0,0,0.45);
+  border: 2px solid rgba(255,255,255,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  margin-top: 10px;
+  box-shadow: 0 0 20px rgba(255,255,255,0.3);
+  position: relative;
+  z-index: 2;
+  transition: transform 0.3s;
+}
+.game-door:hover .door-rune-symbol { transform: scale(1.15) rotate(15deg); }
+
+.door-title-box {
+  position: relative;
+  z-index: 2;
+  margin-bottom: 12px;
+}
+.door-name {
+  font-family: var(--font-serif);
+  font-size: 2.1rem;
+  font-weight: 900;
+  letter-spacing: 1.5px;
+  line-height: 1;
+  text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+}
+.door-full-name {
+  font-size: 0.95rem;
+  opacity: 0.95;
+  display: block;
+  margin-top: 6px;
+  font-weight: 700;
+  text-shadow: 0 1px 4px rgba(0,0,0,0.8);
+}
+
+.door-knob {
+  position: absolute;
+  right: 18px;
+  top: 56%;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #fff1b8, #b8860b);
+  border: 2px solid #5a3d00;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.6), 0 0 10px rgba(255,215,0,0.5);
+  z-index: 5;
+}
+
+.door-interior-portal {
+  position: absolute;
+  inset: 12px;
+  border-radius: 78px 78px 4px 4px;
+  background: radial-gradient(circle at 50% 50%, #ffffff 0%, var(--door-color) 45%, #050c08 95%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  padding: 20px;
+  text-shadow: 0 2px 6px #000;
+}
+.door-portal-vortex {
+  font-size: 44px;
+  animation: spin-portal 8s linear infinite;
+}
+@keyframes spin-portal {
+  100% { transform: rotate(360deg); }
+}
+
+.opened-banner {
+  position: absolute;
+  top: -12px;
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+  color: #111;
+  font-family: var(--font-game);
+  font-size: 0.82rem;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 3px 14px;
+  border-radius: 12px;
+  border: 1.5px solid #fff;
+  box-shadow: 0 3px 10px rgba(0,0,0,0.4);
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+/* Door Sanctum (World) View */
+.sanctum-container {
+  animation: slideUp 0.5s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(20px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.sanctum-header-card {
+  background: var(--card);
+  border: 2px solid var(--accent-color);
+  border-radius: 16px;
+  padding: 24px 28px;
+  margin: 16px 0 24px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.4), 0 0 20px var(--accent-glow);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.sanctum-badge-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+.sanctum-rune-icon {
+  width: 58px;
+  height: 58px;
+  border-radius: 12px;
+  background: var(--accent-color);
+  border: 2px solid #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  box-shadow: 0 0 20px var(--accent-color);
+  color: #fff;
+}
+.sanctum-title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.6rem, 3.8vw, 2.3rem);
+  color: var(--ink);
+  line-height: 1.1;
+  margin: 0;
+}
+.sanctum-subtitle {
+  font-size: 1.05rem;
+  color: var(--accent-color);
+  font-weight: 700;
+}
+
+/* Tabs */
+.game-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 22px 0;
+}
+.game-tab {
+  background: var(--card);
+  border: 2px solid var(--card-border);
+  color: var(--ink-dim);
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-family: var(--font-game);
+  font-size: 1.05rem;
+  letter-spacing: 0.5px;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.game-tab:hover {
+  color: #fff;
+  border-color: var(--accent-color);
+  transform: translateY(-2px);
+}
+.game-tab[aria-selected="true"] {
+  background: var(--accent-color);
+  border-color: var(--accent-color);
+  color: #ffffff;
+  box-shadow: 0 4px 15px var(--accent-glow);
+  font-weight: 700;
+}
+
+/* Panel & Content */
+.parchment-panel {
+  background: var(--card);
+  border: 1px solid var(--card-border);
+  border-left: 10px solid var(--accent-color);
+  border-radius: 12px;
+  padding: 30px 32px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+  animation: fadeIn 0.4s ease;
+  position: relative;
+}
+:root[data-theme="light"] .parchment-panel {
+  background: #fbfdf9;
+  border-color: #bcd4b7;
+}
+
+.equation-box {
+  font-family: var(--font-mono);
+  font-size: clamp(1.1rem, 3.6vw, 1.6rem);
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin-bottom: 20px;
+  color: var(--gold);
+  overflow-x: auto;
+  white-space: nowrap;
+  box-shadow: inset 0 2px 8px rgba(0,0,0,0.4);
+}
+:root[data-theme="light"] .equation-box {
+  background: #f0f7ec;
+  border-color: #a4cca0;
+  color: #174223;
+}
+
+.how-explanation {
+  font-size: 1.15rem;
+  line-height: 1.7;
+  color: var(--ink);
+  background: rgba(255,255,255,0.03);
+  padding: 16px 20px;
+  border-radius: 8px;
+  border-left: 3px solid var(--gold);
+}
+
+.rich-desc-box {
+  background: rgba(255,255,255,0.03);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 18px 22px;
+  margin-bottom: 14px;
+  line-height: 1.75;
+}
+
+.apps-grid {
+  display: grid;
+  gap: 18px;
+  list-style: none;
+  padding: 0;
+}
+.app-card {
+  background: rgba(0,0,0,0.25);
+  border: 1px solid var(--card-border);
+  border-radius: 10px;
+  padding: 18px 22px;
+  transition: transform 0.2s, border-color 0.2s;
+}
+.app-card:hover {
+  transform: translateX(4px);
+  border-color: var(--accent-color);
+}
+.app-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-serif);
+  font-size: 1.25rem;
+  color: var(--gold);
+  margin-bottom: 6px;
+}
+
+/* Interactive Simulator Tab inside World */
+.simulator-widget {
+  background: rgba(0,0,0,0.3);
+  border: 1.5px solid var(--card-border);
+  border-radius: 12px;
+  padding: 22px;
+  margin-top: 20px;
+}
+.sim-title {
+  font-family: var(--font-game);
+  color: var(--gold);
+  font-size: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.slider-group {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 16px 0;
+}
+.slider-group input[type="range"] {
+  flex: 1;
+  accent-color: var(--accent-color);
+  cursor: pointer;
+  height: 8px;
+}
+
+/* Compare View */
+.compare-container {
+  animation: fadeIn 0.6s ease;
+}
+.compare-table-wrapper {
+  overflow-x: auto;
+  background: var(--card);
+  border: 2px solid var(--card-border);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  margin: 24px 0 28px;
+}
+.compare-table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: 680px;
+}
+.compare-table th,
+.compare-table td {
+  padding: 14px 18px;
+  text-align: left;
+  border-bottom: 1px solid var(--card-border);
+  vertical-align: top;
+}
+.compare-table th {
+  font-family: var(--font-serif);
+  font-size: 1.15rem;
+  letter-spacing: 0.5px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+}
+.compare-table td:first-child {
+  font-family: var(--font-game);
+  font-size: 1.1rem;
+  color: var(--gold);
+  width: 220px;
+}
+.compare-table tr:hover td {
+  background: rgba(255,255,255,0.03);
+}
+
+/* Interactive Outlier Arena */
+.arena-card {
+  background: linear-gradient(135deg, rgba(30, 60, 42, 0.5), rgba(10, 25, 17, 0.8));
+  border: 2px dashed var(--gold);
+  border-radius: 14px;
+  padding: 24px;
+  margin: 32px 0 20px;
+}
+.arena-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+.arena-title {
+  font-family: var(--font-game);
+  font-size: 1.35rem;
+  color: var(--gold);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.arena-bars {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+.arena-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.arena-bar-label {
+  width: 70px;
+  font-family: var(--font-serif);
+  font-weight: 700;
+}
+.arena-bar-track {
+  flex: 1;
+  height: 22px;
+  background: rgba(0,0,0,0.4);
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid var(--card-border);
+  position: relative;
+}
+.arena-bar-fill {
+  height: 100%;
+  border-radius: 5px;
+  transition: width 0.3s ease;
+}
+.arena-bar-val {
+  width: 90px;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-weight: 700;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: scale(0.98); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@media (max-width: 640px) {
+  .game-hud { padding: 8px 12px; }
+  .hud-title { font-size: 1rem; }
+  .quest-badge { display: none; }
+  main { padding: 20px 14px 110px; }
+  .hall-grid { grid-template-columns: 1fr; }
+  .game-door { height: 260px; }
+  .sanctum-header-card { padding: 18px 20px; }
+  .parchment-panel { padding: 20px 18px; }
+}
+</style>
+</head>
+<body>
+
+<div id="canvas-container">
+  <canvas id="nature-canvas"></canvas>
+</div>
+<div class="forest-silhouette forest-back"></div>
+<div class="forest-silhouette forest-front"></div>
+<div class="celestial"></div>
+
+<div id="root"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.7/babel.min.js"></script>
+
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+/* Sound Synthesis & Music Engine (Procedural Web Audio API) */
+class SoundEngine {
+  constructor() {
+    this.ctx = null;
+    this.muted = false;
+    this.bgmPlaying = false;
+    this.bgmTimer = null;
+  }
+  init() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (AudioCtx) this.ctx = new AudioCtx();
+    }
+    if (this.ctx && this.ctx.state === "suspended") {
+      this.ctx.resume();
+    }
+  }
+  playClick() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+      osc.type = "triangle";
+      osc.frequency.setValueAtTime(460, this.ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(740, this.ctx.currentTime + 0.08);
+      gain.gain.setValueAtTime(0.12, this.ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + 0.09);
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+      osc.start();
+      osc.stop(this.ctx.currentTime + 0.09);
+    } catch(e) {}
+  }
+  playDoorOpen() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      [220, 277.18, 329.63, 440, 554.37].forEach((freq, idx) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "sine";
+        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+        gain.gain.setValueAtTime(0, now + idx * 0.08);
+        gain.gain.linearRampToValueAtTime(0.15, now + idx * 0.08 + 0.03);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + idx * 0.08 + 0.7);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + idx * 0.08);
+        osc.stop(now + idx * 0.08 + 0.7);
+      });
+    } catch(e) {}
+  }
+  playFanfare() {
+    if (this.muted) return;
+    this.init();
+    if (!this.ctx) return;
+    try {
+      const now = this.ctx.currentTime;
+      const notes = [392, 523.25, 659.25, 783.99, 1046.50];
+      notes.forEach((freq, i) => {
+        const osc = this.ctx.createOscillator();
+        const gain = this.ctx.createGain();
+        osc.type = "triangle";
+        osc.frequency.setValueAtTime(freq, now + i * 0.1);
+        gain.gain.setValueAtTime(0.18, now + i * 0.1);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.1 + 0.6);
+        osc.connect(gain);
+        gain.connect(this.ctx.destination);
+        osc.start(now + i * 0.1);
+        osc.stop(now + i * 0.1 + 0.6);
+      });
+    } catch(e) {}
+  }
+}
+const sound = new SoundEngine();
+
+/* Content from the backup file with complete rich text */
+const LOSSES = [
+  {
+    id: "mse",
+    name: "MSE",
+    full: "Mean Squared Error",
+    color: "#e04f44",
+    glow: "rgba(224, 79, 68, 0.4)",
+    rune: "ᚦ",
+    runeName: "Ruby of Precision",
+    eq: "MSE = (1/n) Σ (yᵢ − ŷᵢ)²",
+    how: "Square every error, then average them. Squaring makes big misses count far more than small ones, and it targets the mean.",
+    good: [
+      "MSE acts as a strict disciplinarian for large mistakes. Because the error is squared, being off by 10 units is penalized 100 times worse than being off by 1 unit. This forces the model to aggressively correct its most severe predictions. Mathematically, its smooth, bowl-like shape provides a clean, predictable path for gradient descent to slide down to the minimum."
+    ],
+    bad: [
+      "It lacks common sense when faced with anomalies. If your dataset contains a massive outlier, like a sensor glitch recording a temperature of 5,000 degrees, MSE will panic and warp your entire model just to accommodate that single broken data point. Furthermore, its units are squared, making it difficult to explain to stakeholders."
+    ],
+    apps: [
+      ["GPS routing and ETAs", "Being 1 minute late is fine; being 30 minutes late is a disaster. MSE heavily penalizes the catastrophic misses."],
+      ["Predictive maintenance", "In manufacturing, failing to predict a massive machine failure is far more expensive than slightly misjudging minor wear and tear."]
+    ]
+  },
+  {
+    id: "mae",
+    name: "MAE",
+    full: "Mean Absolute Error",
+    color: "#d89619",
+    glow: "rgba(216, 150, 25, 0.4)",
+    rune: "ᚱ",
+    runeName: "Topaz of Resilience",
+    eq: "MAE = (1/n) Σ |yᵢ − ŷᵢ|",
+    how: "Take the absolute value of every error and average them. Every error counts in a straight line, and it targets the median.",
+    good: [
+      "MAE is grounded and robust. By treating all errors linearly, it ignores extreme outliers and focuses on getting the typical (median) case right. It is also inherently readable: if you are predicting inventory, an MAE of 5 means you are off by 5 items on average."
+    ],
+    bad: [
+      "It lacks a sense of urgency for extreme errors. MAE treats one prediction that is off by $100 exactly the same as ten predictions that are off by $10 each. If large individual errors are fatal to your use case, MAE will ignore the danger. Computationally, its \"V\" shape creates a sharp corner at zero, so it is not differentiable there, causing gradient descent algorithms to jitter or bounce around the exact solution unless you meticulously step down the learning rate."
+    ],
+    apps: [
+      ["Real estate pricing", "A neighborhood might have a few $20 million mansions mixed with $300k homes. MAE prevents the mansions from dragging the baseline upward, so standard homes are priced accurately."],
+      ["Retail demand forecasting", "Predicting daily sales of apples. You want the most common daily error to be as low as possible, regardless of a one-time holiday spike."]
+    ]
+  },
+  {
+    id: "sse",
+    name: "SSE",
+    full: "Sum of Squared Errors",
+    color: "#2fb36d",
+    glow: "rgba(47, 179, 109, 0.4)",
+    rune: "ᛋ",
+    runeName: "Emerald of Totality",
+    eq: "SSE = Σ (yᵢ − ŷᵢ)²",
+    how: "The same as MSE but summed instead of averaged. It has the same minimizer as MSE, so it finds the same best model.",
+    good: [
+      "SSE is the raw, unscaled total of all mistakes. While MSE averages the error, SSE simply tallies it up. This makes it the engine for foundational mathematical proofs and closed-form solutions. If your dataset size isn't changing, minimizing SSE yields the exact same optimal model as MSE, but the math is often cleaner to write and compute."
+    ],
+    bad: [
+      "It is utterly useless for comparing models across datasets of different sizes. A highly accurate model tested on 1 million rows will have an astronomically higher SSE than a terrible model tested on 10 rows, simply because it is adding up more numbers. If used in deep learning, those massive summed gradients will cause the model's weights to explode unless manually scaled down."
+    ],
+    apps: [
+      ["K-Means clustering", "SSE is the standard metric (often called inertia) for how tightly data points sit around their centroids."],
+      ["Analysis of Variance (ANOVA)", "Traditional statistical testing relies on SSE to split how much variance comes from the model versus random noise."]
+    ]
+  },
+  {
+    id: "rmse",
+    name: "RMSE",
+    full: "Root Mean Squared Error",
+    color: "#38bdf8",
+    glow: "rgba(56, 189, 248, 0.4)",
+    rune: "ᛗ",
+    runeName: "Sapphire of Scale",
+    eq: "RMSE = √( (1/n) Σ (yᵢ − ŷᵢ)² )",
+    how: "Take the square root of MSE. You get MSE's behavior, but the error is back in the original units.",
+    good: [
+      "You want to punish big errors and still read the result directly, like \"off by 5 degrees\".",
+      "Comparing models on the same dataset."
+    ],
+    bad: [
+      "It is still dominated by outliers.",
+      "As a training loss it adds nothing over MSE, and its gradient can be unstable as the error nears 0."
+    ],
+    apps: [
+      ["Weather forecasting", "Forecast skill is reported as RMSE in degrees. Off by 1° is fine; off by 10° misses a heatwave or a frost."],
+      ["Recommender systems (Netflix Prize)", "Models were ranked by RMSE on predicted star ratings. Being off by 2 stars is much worse than 1, and \"0.85 stars\" is easy to explain."],
+      ["Electricity load forecasting", "Underestimating a demand spike can cause blackouts, and RMSE in megawatts is directly meaningful."]
+    ]
+  }
+];
+
+const TABS = ["Equation", "When useful", "When harmful", "Applications", "Interactive Lab"];
+
+const ROWS = [
+  ["Targets", "Mean", "Median", "Mean", "Mean"],
+  ["Outlier sensitivity", "High", "Low", "High", "High"],
+  ["Smooth gradient", "Yes", "No (at 0)", "Yes", "Yes, except near 0"],
+  ["Units match the target", "No", "Yes", "No", "Yes"],
+  ["Comparable across dataset sizes", "Yes", "Yes", "No", "Yes"],
+  ["Best used for", "Training when big misses are costly", "Training with outliers", "Least squares math, clustering, ANOVA", "Reporting model error"]
+];
+
+/* Nature Canvas: Floating Fireflies & Drifting Forest Leaves */
+function initNatureCanvas() {
+  const canvas = document.getElementById("nature-canvas");
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  let width = (canvas.width = window.innerWidth);
+  let height = (canvas.height = window.innerHeight);
+
+  window.addEventListener("resize", () => {
+    width = canvas.width = window.innerWidth;
+    height = canvas.height = window.innerHeight;
+  });
+
+  const fireflies = Array.from({ length: 32 }, () => ({
+    x: Math.random() * width,
+    y: Math.random() * height,
+    r: Math.random() * 2.2 + 1,
+    alpha: Math.random() * 0.8 + 0.2,
+    dx: (Math.random() - 0.5) * 0.6,
+    dy: (Math.random() - 0.5) * 0.6,
+    pulseSpeed: Math.random() * 0.03 + 0.01,
+    pulse: Math.random() * Math.PI,
+  }));
+
+  const leaves = Array.from({ length: 22 }, () => ({
+    x: Math.random() * width,
+    y: Math.random() * height,
+    size: Math.random() * 8 + 6,
+    speedY: Math.random() * 0.8 + 0.4,
+    speedX: Math.random() * 0.6 - 0.2,
+    rotation: Math.random() * Math.PI * 2,
+    rotSpeed: (Math.random() - 0.5) * 0.03,
+    color: Math.random() > 0.4 ? "#7aa874" : "#e49e49"
+  }));
+
+  function animate() {
+    ctx.clearRect(0, 0, width, height);
+
+    fireflies.forEach(f => {
+      f.x += f.dx;
+      f.y += f.dy;
+      f.pulse += f.pulseSpeed;
+      if (f.x < 0) f.x = width;
+      if (f.x > width) f.x = 0;
+      if (f.y < 0) f.y = height;
+      if (f.y > height) f.y = 0;
+
+      const currentAlpha = Math.max(0.1, (Math.sin(f.pulse) * 0.5 + 0.5) * f.alpha);
+      ctx.beginPath();
+      ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(247, 224, 150, ${currentAlpha})`;
+      ctx.shadowColor = "#f3c759";
+      ctx.shadowBlur = 10;
+      ctx.fill();
+      ctx.shadowBlur = 0;
+    });
+
+    leaves.forEach(l => {
+      l.y += l.speedY;
+      l.x += Math.sin(l.y * 0.01) * 0.8 + l.speedX;
+      l.rotation += l.rotSpeed;
+      if (l.y > height + 20) {
+        l.y = -20;
+        l.x = Math.random() * width;
+      }
+      ctx.save();
+      ctx.translate(l.x, l.y);
+      ctx.rotate(l.rotation);
+      ctx.beginPath();
+      ctx.ellipse(0, 0, l.size, l.size * 0.5, 0, 0, Math.PI * 2);
+      ctx.fillStyle = l.color;
+      ctx.globalAlpha = 0.45;
+      ctx.fill();
+      ctx.restore();
+    });
+
+    requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+/* Page 1: Intro */
+function Intro({ next }) {
+  return (
+    <div className="intro-container">
+      <div className="intro-parchment">
+        <h1>Four ways to measure a wrong guess</h1>
+        <p className="intro-lead">
+          A cost function turns a model's mistakes into one number the model tries to shrink. Pick a different one and you get a different model.
+        </p>
+        <p className="intro-lead">
+          We are here to explore four of them: MSE, MAE, SSE and RMSE. Each door opens onto one world, and each world has four parts.
+        </p>
+        <div style={{ marginTop: 28 }}>
+          <button className="rpg-btn" onClick={() => { sound.playClick(); next(); }}>
+            <span>🚪</span> Enter the hall
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Page 2: Hall of Four Doors */
+function Hall({ open, seen, compare }) {
+  const [openingDoor, setOpeningDoor] = useState(null);
+
+  const handleDoorClick = (index) => {
+    sound.playDoorOpen();
+    setOpeningDoor(index);
+    setTimeout(() => {
+      open(index);
+    }, 700);
+  };
+
+  return (
+    <div className="hall-container">
+      <div className="hall-header">
+        <h2>Choose a door</h2>
+        <p style={{ margin: "0 auto", fontSize: "1.15rem" }}>
+          {seen.length} of 4 opened. {seen.length === 4 && "You have seen every cost function."}
+        </p>
+        <div className="hall-progress-pill">
+          <span>Grove Progress:</span>
+          {LOSSES.map((l, i) => (
+            <span
+              key={l.id}
+              className={"rune-gem" + (seen.includes(i) ? " active" : "")}
+              style={{ background: l.color, color: l.color }}
+              title={l.runeName}
+            />
+          ))}
+          <span>({seen.length}/4)</span>
+        </div>
+      </div>
+
+      <div className="hall-grid">
+        {LOSSES.map((l, i) => {
+          const isOpened = seen.includes(i);
+          const isAnimating = openingDoor === i;
+          return (
+            <button
+              key={l.id}
+              className={"game-door" + (isAnimating ? " open" : "")}
+              style={{
+                "--accent-door": l.color,
+                "--accent-glow": l.glow,
+                "--door-color": l.color,
+                "--door-bg": `linear-gradient(170deg, ${l.color}dd 0%, #111a14 100%)`
+              }}
+              onClick={() => handleDoorClick(i)}
+              aria-label={"Open the " + l.name + " door"}
+            >
+              {isOpened && (
+                <div className="opened-banner">
+                  <span>✦</span> opened
+                </div>
+              )}
+              <div className="door-interior-portal">
+                <div className="door-portal-vortex">✦</div>
+                <div style={{ marginTop: 10, fontFamily: "var(--font-game)", color: "var(--gold)" }}>
+                  Opening Portal...
+                </div>
+              </div>
+
+              <div className="door-leaf">
+                <div className="door-frame-arch"></div>
+                <div className="door-rune-symbol" style={{ borderColor: l.color, color: l.color }}>
+                  {l.rune}
+                </div>
+                <div className="door-knob"></div>
+                <div className="door-title-box">
+                  <span className="door-name" style={{ color: "#fff" }}>{l.name}</span>
+                  <small className="door-full-name">{l.full}</small>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div style={{ display: "flex", gap: 14, justifyContent: "center", flexWrap: "wrap", marginTop: 24 }}>
+        <button className="rpg-btn" onClick={() => { sound.playClick(); compare(); }}>
+          <span>📜</span> Compare all four
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* Page 3: Door World (Sanctum) */
+function World({ i, back }) {
+  const l = LOSSES[i];
+  const [tab, setTab] = useState(0);
+
+  // Interactive Simulator state
+  const [targetY, setTargetY] = useState(10);
+  const [predY, setPredY] = useState(14);
+  const diff = targetY - predY;
+  const absError = Math.abs(diff);
+  const sqError = diff * diff;
+
+  const getSimPenalty = () => {
+    if (l.id === "mse") return sqError.toFixed(1);
+    if (l.id === "mae") return absError.toFixed(1);
+    if (l.id === "sse") return (sqError * 3).toFixed(1) + " (for n=3 points)";
+    if (l.id === "rmse") return Math.sqrt(sqError).toFixed(1);
+    return "0";
+  };
+
+  const handleTabChange = (idx) => {
+    sound.playClick();
+    setTab(idx);
+  };
+
+  return (
+    <div className="sanctum-container" style={{ "--accent-color": l.color, "--accent-glow": l.glow }}>
+      <button className="link-btn" onClick={() => { sound.playClick(); back(); }}>
+        ← Back to the hall
+      </button>
+
+      <div className="sanctum-header-card">
+        <div className="sanctum-badge-group">
+          <div className="sanctum-rune-icon">{l.rune}</div>
+          <div>
+            <h2 className="sanctum-title">{l.name}: {l.full}</h2>
+            <div className="sanctum-subtitle">{l.runeName}</div>
+          </div>
+        </div>
+        <div style={{ fontFamily: "var(--font-game)", color: "var(--gold)", fontSize: "0.95rem" }}>
+          Door {i + 1} of 4
+        </div>
+      </div>
+
+      <div className="game-tabs" role="tablist">
+        {TABS.map((n, k) => (
+          <button
+            key={n}
+            role="tab"
+            aria-selected={tab === k}
+            className="game-tab"
+            onClick={() => handleTabChange(k)}
+          >
+            <span>{k === 0 ? "📐" : k === 1 ? "🛡️" : k === 2 ? "⚠️" : k === 3 ? "🗺️" : "🧪"}</span>
+            {n}
+          </button>
+        ))}
+      </div>
+
+      <div className="parchment-panel" key={tab}>
+        {tab === 0 && (
+          <div>
+            <div className="equation-box">{l.eq}</div>
+            <div className="how-explanation">{l.how}</div>
+          </div>
+        )}
+
+        {tab === 1 && (
+          <div>
+            {l.good.map(x => (
+              <div key={x} className="rich-desc-box">
+                {x}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === 2 && (
+          <div>
+            {l.bad.map(x => (
+              <div key={x} className="rich-desc-box" style={{ borderLeft: "4px solid #ef4444" }}>
+                {x}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {tab === 3 && (
+          <ul className="apps-grid">
+            {l.apps.map(a => (
+              <li key={a[0]} className="app-card">
+                <div className="app-title">
+                  <span>✦</span> <b>{a[0]}</b>
+                </div>
+                <div style={{ color: "var(--ink)", lineHeight: 1.6 }}>{a[1]}</div>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        {tab === 4 && (
+          <div className="simulator-widget">
+            <div className="sim-title">
+              <span>🧪</span> Interactive Residual Lab
+            </div>
+            <p style={{ fontSize: "0.95rem" }}>
+              Test how <strong>{l.name}</strong> calculates penalties. Move the prediction slider to observe the error response:
+            </p>
+            <div className="slider-group">
+              <span style={{ minWidth: 140, fontFamily: "var(--font-mono)" }}>True Target yᵢ = {targetY}</span>
+              <input type="range" min="0" max="30" value={targetY} onChange={e => setTargetY(Number(e.target.value))} />
+            </div>
+            <div className="slider-group">
+              <span style={{ minWidth: 140, fontFamily: "var(--font-mono)" }}>Predicted ŷᵢ = {predY}</span>
+              <input type="range" min="0" max="30" value={predY} onChange={e => setPredY(Number(e.target.value))} />
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 12, marginTop: 14 }}>
+              <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px 14px", borderRadius: 8 }}>
+                <small style={{ color: "var(--ink-dim)" }}>Residual (y - ŷ):</small>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "1.3rem", color: diff === 0 ? "#10b981" : "#f59e0b" }}>
+                  {diff > 0 ? `+${diff}` : diff}
+                </div>
+              </div>
+              <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px 14px", borderRadius: 8 }}>
+                <small style={{ color: "var(--ink-dim)" }}>Absolute |Error|:</small>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "1.3rem", color: "var(--gold)" }}>
+                  {absError}
+                </div>
+              </div>
+              <div style={{ background: "rgba(0,0,0,0.3)", padding: "10px 14px", borderRadius: 8 }}>
+                <small style={{ color: "var(--ink-dim)" }}>Squared Error (Error²):</small>
+                <div style={{ fontFamily: "var(--font-mono)", fontSize: "1.3rem", color: "#e04f44" }}>
+                  {sqError}
+                </div>
+              </div>
+            </div>
+
+            <div style={{ marginTop: 18, padding: 14, background: "rgba(0,0,0,0.4)", borderRadius: 8, borderLeft: `4px solid ${l.color}` }}>
+              <strong>Calculated {l.name} Metric:</strong>
+              <span style={{ fontFamily: "var(--font-mono)", fontSize: "1.3rem", color: l.color, marginLeft: 12 }}>
+                {getSimPenalty()}
+              </span>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, flexWrap: "wrap", gap: 12 }}>
+        <button
+          className="rpg-btn rpg-btn-secondary"
+          disabled={tab === 0}
+          onClick={() => handleTabChange(tab - 1)}
+        >
+          ← Previous
+        </button>
+        {tab < 4 ? (
+          <button className="rpg-btn" onClick={() => handleTabChange(tab + 1)}>
+            Next →
+          </button>
+        ) : (
+          <button className="rpg-btn" onClick={() => { sound.playClick(); back(); }}>
+            Back to the hall 🚪
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/* Page 4: Compare All Four */
+function Compare({ back }) {
+  const [outlier, setOutlier] = useState(20);
+
+  const n = 5;
+  const errors = [1, 2, 1, 0, outlier];
+  const absSum = errors.reduce((acc, v) => acc + Math.abs(v), 0);
+  const sqSum = errors.reduce((acc, v) => acc + (v * v), 0);
+
+  const curMAE = (absSum / n).toFixed(2);
+  const curMSE = (sqSum / n).toFixed(1);
+  const curSSE = sqSum.toFixed(0);
+  const curRMSE = Math.sqrt(sqSum / n).toFixed(2);
+
+  return (
+    <div className="compare-container">
+      <button className="link-btn" onClick={() => { sound.playClick(); back(); }}>
+        ← Back to the hall
+      </button>
+
+      <h2 style={{ marginTop: 16 }}>All four side by side</h2>
+
+      <div className="compare-table-wrapper">
+        <table className="compare-table">
+          <thead>
+            <tr>
+              <th style={{ background: "rgba(255,255,255,0.08)" }}></th>
+              {LOSSES.map(l => (
+                <th key={l.id} style={{ background: l.color }}>
+                  {l.name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {ROWS.map(r => (
+              <tr key={r[0]}>
+                <td><b>{r[0]}</b></td>
+                {r.slice(1).map((c, k) => (
+                  <td key={k}>
+                    {c}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div style={{ background: "rgba(0,0,0,0.25)", borderLeft: "4px solid var(--gold)", padding: "16px 20px", borderRadius: 8, margin: "20px 0" }}>
+        <p style={{ margin: 0, fontSize: "1.05rem" }}>
+          MSE, SSE and RMSE all find the same best model; they differ in scale and readability. MAE is the one that behaves differently, because it targets the median instead of the mean.
+        </p>
+      </div>
+
+      {/* Outlier Stress Arena (clean interactive tool, zero beast references!) */}
+      <div className="arena-card">
+        <div className="arena-header">
+          <div className="arena-title">
+            <span>📊</span> The Outlier Sensitivity Arena
+          </div>
+          <div style={{ fontSize: "0.9rem", color: "var(--ink-dim)" }}>
+            Adjust the outlier error value to see how each cost function responds in real-time.
+          </div>
+        </div>
+
+        <div className="slider-group">
+          <span style={{ minWidth: 160, fontFamily: "var(--font-game)", color: "var(--gold)" }}>
+            Outlier Error Value: {outlier}
+          </span>
+          <input
+            type="range"
+            min="0"
+            max="60"
+            value={outlier}
+            onChange={e => setOutlier(Number(e.target.value))}
+          />
+        </div>
+
+        <div className="arena-bars">
+          <div className="arena-bar-row">
+            <span className="arena-bar-label" style={{ color: "#e04f44" }}>MSE</span>
+            <div className="arena-bar-track">
+              <div
+                className="arena-bar-fill"
+                style={{ width: `${Math.min(100, (curMSE / 720) * 100)}%`, background: "#e04f44" }}
+              />
+            </div>
+            <span className="arena-bar-val" style={{ color: "#e04f44" }}>{curMSE}</span>
+          </div>
+
+          <div className="arena-bar-row">
+            <span className="arena-bar-label" style={{ color: "#d89619" }}>MAE</span>
+            <div className="arena-bar-track">
+              <div
+                className="arena-bar-fill"
+                style={{ width: `${Math.min(100, (curMAE / 15) * 100)}%`, background: "#d89619" }}
+              />
+            </div>
+            <span className="arena-bar-val" style={{ color: "#d89619" }}>{curMAE}</span>
+          </div>
+
+          <div className="arena-bar-row">
+            <span className="arena-bar-label" style={{ color: "#2fb36d" }}>SSE</span>
+            <div className="arena-bar-track">
+              <div
+                className="arena-bar-fill"
+                style={{ width: `${Math.min(100, (curSSE / 3600) * 100)}%`, background: "#2fb36d" }}
+              />
+            </div>
+            <span className="arena-bar-val" style={{ color: "#2fb36d" }}>{curSSE}</span>
+          </div>
+
+          <div className="arena-bar-row">
+            <span className="arena-bar-label" style={{ color: "#38bdf8" }}>RMSE</span>
+            <div className="arena-bar-track">
+              <div
+                className="arena-bar-fill"
+                style={{ width: `${Math.min(100, (curRMSE / 28) * 100)}%`, background: "#38bdf8" }}
+              />
+            </div>
+            <span className="arena-bar-val" style={{ color: "#38bdf8" }}>{curRMSE}</span>
+          </div>
+        </div>
+        <div style={{ marginTop: 12, fontSize: "0.85rem", color: "var(--ink-dim)" }}>
+          Notice: As the outlier grows, <strong>MAE</strong> scales linearly and stays grounded, while <strong>MSE</strong> explodes quadratically!
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* Master App Container */
+function App() {
+  const [scene, setScene] = useState("intro");
+  const [worldIndex, setWorldIndex] = useState(0);
+  const [seenDoors, setSeenDoors] = useState([]);
+  const [theme, setTheme] = useState("dark");
+  const [isMuted, setIsMuted] = useState(false);
+
+  useEffect(() => {
+    initNatureCanvas();
+  }, []);
+
+  const openDoor = (i) => {
+    setWorldIndex(i);
+    setSeenDoors(prev => (prev.includes(i) ? prev : [...prev, i]));
+    setScene("world");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const toggleTheme = () => {
+    sound.playClick();
+    const next = theme === "dark" ? "light" : "dark";
+    setTheme(next);
+    document.documentElement.setAttribute("data-theme", next);
+  };
+
+  const toggleSound = () => {
+    sound.muted = !sound.muted;
+    setIsMuted(sound.muted);
+    if (!sound.muted) sound.playClick();
+  };
+
+  return (
+    <div>
+      {/* Game HUD */}
+      <header className="game-hud">
+        <div className="hud-title-zone">
+          <div className="hud-emblem">🌲</div>
+          <div>
+            <div className="hud-title">Four Doors: Cost Functions</div>
+            <div className="hud-subtitle">The Sacred Woodland of Regression Losses</div>
+          </div>
+        </div>
+
+        <div className="hud-quest-stats">
+          <div className="quest-badge">
+            <span style={{ color: "var(--gold)" }}>Runes:</span>
+            {LOSSES.map((l, i) => (
+              <span
+                key={l.id}
+                className={"rune-gem" + (seenDoors.includes(i) ? " active" : "")}
+                style={{ background: l.color, color: l.color }}
+                title={`${l.name}: ${seenDoors.includes(i) ? "Unlocked" : "Hidden"}`}
+              />
+            ))}
+            <span style={{ fontSize: "0.8rem", color: "var(--ink-dim)" }}>
+              ({seenDoors.length}/4)
+            </span>
+          </div>
+
+          <div className="hud-controls">
+            <button className="hud-btn" onClick={toggleSound} title="Toggle Audio / Sound Effects">
+              {isMuted ? "🔇 Sound Off" : "🔊 Sound On"}
+            </button>
+            <button className="hud-btn" onClick={toggleTheme} title="Toggle Day / Night Realm">
+              {theme === "dark" ? "☀️ Day" : "🌙 Night"}
+            </button>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Pages */}
+      <main>
+        {scene === "intro" && (
+          <Intro next={() => setScene("hall")} />
+        )}
+        {scene === "hall" && (
+          <Hall
+            open={openDoor}
+            seen={seenDoors}
+            compare={() => { setScene("compare"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          />
+        )}
+        {scene === "world" && (
+          <World
+            i={worldIndex}
+            back={() => { setScene("hall"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          />
+        )}
+        {scene === "compare" && (
+          <Compare
+            back={() => { setScene("hall"); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          />
+        )}
+      </main>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+</script>
+</body>
+</html>
